@@ -1,0 +1,23 @@
+b phase_6
+b explode_bomb
+r psol.txt
+until *0x00000000004017a5
+
+x/3x $rdx
+x/3x $rbx
+x/3x *($rbx+8)
+x/3x *(*($rbx+8)+8)
+x/3x *(*(*($rbx+8)+8)+8)
+x/3x *(*(*(*($rbx+8)+8)+8)+8)
+
+
+
+x/10xg $rsp
+
+
+
+in order of greatest to least node value
+1 5 4 2 6 3
+
+7 - x for all x in previous ordering
+6 2 3 5 1 4
