@@ -24,16 +24,16 @@ int consumer_index = 0;
 int main() {
     pthread_t consume;
     setlinebuf(stdout);
-    if (pthread_create(&consume, NULL, consumer(), NULL) != 0) {
-        fprintf(stderr, "Could not create thread whoops")
-        return 1
+    if (pthread_create(&consume, NULL, consumer, NULL) != 0) {
+        fprintf(stderr, "Could not create thread whoops");
+        return 1;
     };
     producer(NULL);
-    pthread_join(&consume, NULL)
-    exit(0);
+    pthread_join(consume, NULL);
     return 0;
 }
 
+// ./ringbuf < testinput.txt
 
 void *producer(void *arg) {
     int value;
@@ -44,14 +44,14 @@ void *producer(void *arg) {
     while (scanf("%d %d %d %d", &value, &producer_sleep, &consumer_sleep, &print_code) == 4) {
         sleep(consumer_sleep);
         struct message record = {.value=value, .consumer_sleep=consumer_sleep, .line=lineNumber, .print_code=print_code, .quit=0};
-        glo[index % BUFSIZE] = record
+        glo[producer_index % BUFSIZE] = record;
         lineNumber += 1;
         producer_index += 1;
         if (print_code == 1 || 3) {
-            printf("Produced %d from input line %d\n", &value, &line);
-        }
+            printf("Produced %d from input line %d\n", &value, &lineNumber);
+        };
         return NULL;
-    }
+    };
 }
 
 void *consumer(void *arg) {
@@ -62,7 +62,7 @@ void *consumer(void *arg) {
     while (BUFSIZE - sizeof(glo) != BUFSIZE) {
         quit_code = glo[consumer_index % BUFSIZE].quit;
         if (quit_code == 1) {
-            printf("Final sum is %d\n", &sum)
+            printf("Final sum is %d\n", &sum);
             return NULL;
         } else { 
             value = glo[consumer_index % BUFSIZE].value;
@@ -71,7 +71,7 @@ void *consumer(void *arg) {
             sum += value;
             printf("Consumed %d from input line %d; sum = %d\n");
             return NULL;
-        }
+        };
         consumer_index += 1;
-    }
+    };
 }
