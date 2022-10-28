@@ -1,7 +1,4 @@
-/* Tesfa Asmara, Cade Kitcsh */
-//https://stackoverflow.com/questions/40855584/c-producer-consumer-using-pthreads
-// https://www.cc.gatech.edu/classes/AY2010/cs4210_fall/code/ProducerConsumer.c
-// https://stackoverflow.com/questions/16522858/understanding-of-pthread-cond-wait-and-pthread-cond-signal
+/* Tesfa Asmara, Cade Kritsch */
 #include <pthread.h>
 #include <stdio.h>
 #include <time.h>
@@ -39,6 +36,7 @@ int main() {
     return 0;
 }
 
+
 void *producer(void *arg) {
     int value;
     unsigned int producer_sleep;
@@ -46,27 +44,63 @@ void *producer(void *arg) {
     int print_code;
     int lineNumber = 1;
     while (scanf("%d %u %u %d", &value, &producer_sleep, &consumer_sleep, &print_code) == 4) {
-        sleep(producer_sleep);
-        pthread_mutex_lock(&mutex);
+        if (sleep(producer_sleep/1000) != 0) {
+            fprintf(stderr, "The producer did not sleep");
+            return 1;
+        };
+        if (pthread_mutex_lock(&mutex) != 0) {
+            fprintf(stderr, "The producer did not lock");
+            return 1;
+        };
         while (count == BUFSIZE) {
-            pthread_cond_wait(&not_full, &mutex);
-        }
+            if (pthread_cond_wait(&not_full, &mutex) != 0) {
+                fprintf(stderr, "The producer did not wait");
+                return 1;
+            };
+        };
         buffer[producer_index % BUFSIZE].value=value; 
-        buffer[producer_index % BUFSIZE].consumer_sleep=consumer_sleep; 
+        buffer[producer_index % BUFSIZE].consumer_sleep=consumer_sleep/1000; 
         buffer[producer_index % BUFSIZE].line=lineNumber; 
         buffer[producer_index % BUFSIZE].print_code=print_code;
         buffer[producer_index % BUFSIZE].quit=0;
         lineNumber++;
         producer_index++;
         count++;
-        pthread_cond_signal(&not_empty);
-        pthread_mutex_unlock(&mutex);
-        if (print_code == 1 || 3) {
+        if (pthread_cond_signal(&not_empty) != 0) {
+            fprintf(stderr, "The producer did not signal");
+            return 1;
+        };
+        if (pthread_mutex_unlock(&mutex)!= 0) {
+            fprintf(stderr, "The producer did not unlock");
+            return 1;
+        };
+        if (print_code == 1 || print_code == 3) {
             printf("Produced %d from input line %d\n", value, lineNumber);
         };
     };
-     return NULL;
-}
+    if (pthread_mutex_lock(&mutex) != 0) {
+        fprintf(stderr, "The producer did not lock");
+        return 1;
+    };
+    while (count == BUFSIZE) {
+        if (pthread_cond_wait(&not_full, &mutex) != 0) {
+            fprintf(stderr, "The producer did not wait");
+            return 1;
+        };
+    };
+    buffer[producer_index % BUFSIZE].quit=1;
+    lineNumber++;
+    count++;
+    if (pthread_cond_signal(&not_empty) != 0) {
+        fprintf(stderr, "The producer did not signal");
+        return 1;
+    };
+    if (pthread_mutex_unlock(&mutex) != 0) {
+        fprintf(stderr, "The producer did not unlock");
+        return 1;
+    };
+    return NULL;
+};
 
 void *consumer(void *arg) {
     int sum = 0;
@@ -74,28 +108,42 @@ void *consumer(void *arg) {
     int quit_code;
     int lineNumber;
     unsigned int consumer_sleep;
+    int print_code;
     while (true) {
-        consumer_sleep = buffer[consumer_index % BUFSIZE].consumer_sleep;
-        sleep(consumer_sleep);
-        pthread_mutex_lock(&mutex);
+        if (pthread_mutex_lock(&mutex) != 0) {
+            fprintf(stderr, "Consumer did not lock");
+            return 1;
+        };
         while (count == 0) {
-            pthread_cond_wait(&not_empty, &mutex);
+            if (pthread_cond_wait(&not_empty, &mutex) != 0) {
+                fprintf(stderr, "Consumer did not wait");
+                return 1;
+            };
         };
         value = buffer[consumer_index % BUFSIZE].value;
         lineNumber = buffer[consumer_index % BUFSIZE].line;
         quit_code = buffer[consumer_index % BUFSIZE].quit;
-        sum += value;
-        count--;
-        consumer_index++;
-        pthread_cond_signal(&not_full);
-        pthread_mutex_unlock(&mutex);
-        if (buffer[consumer_index].print_code == 2 || 3) {
-            printf("Consumed %d from input line %d; sum = %d\n", value, lineNumber, sum);
-        };
+        print_code = buffer[consumer_index % BUFSIZE].print_code;
+        consumer_sleep = buffer[consumer_index % BUFSIZE].consumer_sleep;
         if (quit_code == 1) {
             printf("Final sum is %d\n", sum);
             break;
-        }
-    }
-}
+        };
+        sum += value;
+        count--;
+        consumer_index++;
+        if (pthread_cond_signal(&not_full) != 0) {
+            fprintf(stderr, "Consumer did not signal");
+            return 1;
+        };
+        if (pthread_mutex_unlock(&mutex) != 0) {
+            fprintf(stderr, "Consumer did not unlock");
+            return 1;
+        };
+        sleep(consumer_sleep);
+        if (print_code == 2 || print_code == 3) {
+            printf("Consumed %d from input line %d; sum = %d\n", value, lineNumber, sum);
+        };
+    };
+};
 
