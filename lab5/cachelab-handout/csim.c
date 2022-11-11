@@ -1,116 +1,221 @@
 // Cade Kritsch (loginID ckritsch) and Tesfa Asmara (loginID tasmara)
 // Remember to uncomment `#-Werror -std=c99` in Makefile by removing the #
+#include "math.h"
+#include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+#include "unistd.h"
+#include "getopt.h"
 #include "cachelab.h"
-#include <stdio.h>
-#include <stdlib.h>
+
+#define debug 0
 
 struct cache_line {
-    int valid_bit;
-    int tag;
-    int set;
-    int mru;
+   int valid;
+   unsigned long int tag;
+   int LRU;   
 };
 
-int hit_count;
-int miss_count;
-int eviction_count;
-    // a[i][j] == start + i * c + j
 
-    // argc is the number of command line arugments. this includes
-    // arugment names. argv is the actual inputs, including the names.
 int main(int argc, char** argv) {
 
-    // char operation;
-    int s = atoi(argv[2]);
-    int E = atoi(argv[4]);
-    int b = atoi(argv[6]);
-    char* file_name = argv[8];
-    FILE * fp;
-    char load_instruct;
-    char operation;
-    long int address;
-    int size;
-
-    printf("%d %d %d %s\n",s,E,b,file_name);
-                        // enough space for an int,
-                        // 2^s*E times over
-    int *cache = malloc(sizeof(cache_line)*(2^s*E));
-    for (i = 0; i < 2^s; i++) {
-        for (j=0; j < E; j++) {
-            cache[&cache + i * E + j].valid_bit = 0;
-            cache[&cache + i * E + j].tag = 0;
-            cache[&cache + i * E + j].set = 0;
-            cache[&cache + i * E + j].mru = 0;
-        }
-    }
-
-// int blockOffset = (address >> 0) & 0x3F;
-// int setIndex = (address >> 6) & 0x3FF;
-// int tag = (address >> 16) & 0xFFFF;
-
-    //Todo:
-    // Define a struct for each entry of the cache
-    //      - That struct will contain the valid bit, the tag, the block offset
-    // Eventually incorporate getopt
-    // Parse through the valgrind and keep running sum
-    // Indexing for the cache
-    
-    // the lines of the file take the format
-    // [space]operation address,size
-    // we need to read in until EOF, we need to read in the whole line
-    // we want to work with, and then we want to condition on the 
-    // first char
-    fp = fopen(file_name, "r");
-
-
-        // The error from out printing came as a result of not formatting a space at the start
-        // this has no been resolved for our next session after 11/04/22
+   int   v =   0 ; //-- verbose flag. 1 if stated
+   int   s =  -1 ; //-- # of set bits (read in from command line)
+   int   E =  -1 ; //-- associativity 
+   int   b =  -1 ; //-- # of byte offset bits
+   char *t = "-1"; //-- Trace File 
    
-    int min_mru = 0;
-    while (fscanf(fp, " %c %x,%d", &operation, &address, &size) != EOF) {
-        printf("OPERATION: %c \n", operation);
-        printf("ADDRESS: %x \n", address);
-        printf("SIZE: %d \n", size);
-        //printf(load_instruct);
-        set_index = ~(-1 << s) & (address >> b)
-        tag = ~(-1 << (64 - (b + s))) & (address >> (b + s))
-        for (j=0; j < E; j++) {
-            if cache[&cache + set_index * E + j].valid_bit == 1 {
-                if cache[&cache + set_index * E + j].tag == tag {
-                    if operation == "S" || operation == "L" {
-                        hit_count++;
-                        cache[&cache + set_index * E + j].mru++;
-                        if cache[&cache + set_index * E + j].mru < min_mru {
-                            min_mru = j
-                        }
-                    }
-                } else {
-                    miss_count++
-                }
+   unsigned long int set_index_mask;
 
-            }
-        
-        }
-        hits_after = hits
-   };
+   //-- loop through arguments
+   int opt;
+   while ((opt = getopt(argc, argv, "hvs:E:b:t:")) != -1) {
+      switch (opt) {
+	 case 'v': v = 1;            break;
+	 case 's': s = atoi(optarg); break;
+	 case 'E': E = atoi(optarg); break;
+	 case 'b': b = atoi(optarg); break;
+	 case 't': t = optarg;       break;
+	 default :
+	    printf("wrong argument\n");
+	    return 0; break;
+      }
+   }
 
-    // while (fscanf(fp, "%c %c %x %d", load_instruct, operation, address, size) != 4) {
-    //     printf(load_instruct, operation, address, size);
-    // };
+   //-- check to see if we missed any arguments
+   if (s == -1 || E == -1 || b == -1 ||
+       (strcmp("-1", t) == 0) ) {
+      printf("./csim: Missing required command line argument\n");
+      return 0;
+   }
 
+   //-- used for generating tags from addresses
+   set_index_mask = pow(2,s)-1;
 
-    // cache.s= malloc(s * sizeof s)
-    // printSummary(hit_count, miss_count, eviction_count);
+   //-- debug inputs, print them out to see
+   #if debug
+   printf("v is %d\n", v);
+   printf("s is %d\n", s);
+   printf("E is %d\n", E);
+   printf("b is %d\n", b);
+   printf("t is %s\n", t);
+   printf("Set Mask is %lu\n", set_index_mask);
+   #endif
 
-    return 0;
-};
+   
+   //-- allocate the cache
+   struct cache_line **cache;
+   cache = (struct cache_line **)malloc(sizeof(struct cache_line *)*(set_index_mask+1));
+   for (int i = 0; i < set_index_mask+1; i++) {
+      cache[i] = (struct cache_line *)malloc(sizeof(struct cache_line) * E);
+   }
 
-// how to scan in whole  line from the file
-// how to carry out the operation instructions with address and size -- find a way to break the address into set bits and tag bits
-// int parse(char operation, char* file_name) {
-    
-//     if operation == "L":
+   //-- make sure all values in the cache
+   //-- are initialized to 0
+   for (int i = 0; i < set_index_mask+1; i++) {
+      for (int j = 0; j < E; j++) {
+	 cache[i][j].tag = 0;
+	 cache[i][j].valid = 0;
+	 cache[i][j].LRU = 0;
+      }
+   }
+      
+   //-- initialize reading in
+   FILE *pFile;
 
-// }
+   //-- open the trace file
+   pFile = fopen(t,"r");
+   char identifier;
+   unsigned long int address;
+   int size;
 
+   
+   //-- start simulating the cache
+   int hit = 0, miss = 0, evict = 0, ts = 0;
+   while (fscanf(pFile," %c %lx,%d", &identifier, &address, &size) > 0) {
 
+      //-- sim should ignore all instruction cache accesses
+      if (identifier == 'I') {
+	 continue;
+      }
+
+      //-- extract set index from address by bit shifting
+      //-- 'b' bits and 'anding' with our mask, then get
+      //-- the tag bit from the passed in address
+      unsigned long int index, tag;
+      index = ((address >> b) & set_index_mask);
+      tag = (address >> (b + s));
+      
+      char* verbose;
+      int found = 0, evic = 0, val = 0;
+
+      //-- go through each cache block
+      //-- and look in the extracted index
+      for (int i = 0; i < E; i++) {
+
+	 //-- look for a valid entry
+	 if (cache[index][i].valid == 1) {
+
+	    //-- compare the tags
+	    if (cache[index][i].tag == tag) {
+	       
+	       //-- say that we have used this
+	       cache[index][i].LRU = ts++;
+	       found = 1;
+	       break;
+	    }
+	    
+	 } else {
+	    
+	    //-- if we found a non-valid, we can insert here
+	    val = 1;
+	    cache[index][i].valid = 1;
+	    cache[index][i].tag = tag;
+	    cache[index][i].LRU = ts++;
+	    break;
+	 }
+      }
+
+      //-- if the data was not found, and we did not insert 
+      //-- into an  empty valid bit, look for the smallest LRU 
+      //-- and replace it in the cache
+      if (found == 0 && val == 0) {
+	 int j = 0;
+	 for (int i = 1; i < E; i++) {
+	    if (cache[index][j].LRU > cache[index][i].LRU) {
+	       j = i;
+	    }
+	 }
+	 evic = 1;
+	 cache[index][j].valid = 1;
+	 cache[index][j].tag = tag;
+	 cache[index][j].LRU = ts++;	 
+      }
+
+      //-- based on the passed in identifier update the
+      //-- hit, miss, and evict variables as necessary.
+      //-- Set verbose too incase user specified -v
+      switch (identifier) {
+
+	 //-- Load Instruction
+	 case 'L':
+	    if (found == 1) {       //-- found=1 evic=X
+	       verbose = "hit";
+	       hit++;
+	    } else if (evic == 1) { //-- found=0 evic=1
+	       verbose = "miss eviction";
+	       miss++; evict++;
+	    } else {                //-- found=0 evic=0
+	       verbose = "miss";
+	       miss++;
+	    }
+	    break;
+
+         //-- Store Instruction
+	 case 'S':
+	    if (found == 1) {       //-- found=1 evic=X
+	       verbose = "hit";
+	       hit++;
+	    } else if (evic == 1) { //-- found=0 evic=1
+	       verbose = "miss eviction";
+	       miss++; evict++;
+	    } else {                //-- found=0 evic=0
+	       verbose = "miss";
+	       miss++;
+	    }
+	    break;
+
+         //-- Data Modify Instruction
+	 case 'M':
+	    if (found == 1) {       //-- found=1 evic=X
+	       verbose = "hit hit";
+	       hit++; hit++;
+	    } else if (evic == 1) { //-- found=0 evic=1
+	       verbose = "miss eviction hit";
+	       miss++; evict++; hit++;
+	    } else {                //-- found=0 evic=0
+	       verbose = "miss hit";
+	       miss++; hit++;
+	    }
+	    break;
+      }
+      
+      if (v) { //-- print out this line if using verbose
+	 printf("%c %lx,%d %s\n", identifier, address, size, verbose);
+      }
+   }
+   
+   //-- print the results
+   printSummary(hit, miss, evict);
+
+   //-- deallocate file
+   fclose(pFile);
+
+   //-- deallocate the array
+   for (int i = 0; i < set_index_mask+1; i++) {
+      free(cache[i]);
+   }
+   free(cache);
+   
+   return 0;
+}
