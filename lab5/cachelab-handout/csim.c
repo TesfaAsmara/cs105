@@ -8,6 +8,7 @@ struct cache_line {
     int valid_bit;
     int tag;
     int set;
+    int mru;
 };
 
 int hit_count;
@@ -33,8 +34,20 @@ int main(int argc, char** argv) {
     printf("%d %d %d %s\n",s,E,b,file_name);
                         // enough space for an int,
                         // 2^s*E times over
-    //int *cache = malloc(sizeof(int)*(2^s*E));
-    
+    int *cache = malloc(sizeof(cache_line)*(2^s*E));
+    for (i = 0; i < 2^s; i++) {
+        for (j=0; j < E; j++) {
+            cache[&cache + i * E + j].valid_bit = 0;
+            cache[&cache + i * E + j].tag = 0;
+            cache[&cache + i * E + j].set = 0;
+            cache[&cache + i * E + j].mru = 0;
+        }
+    }
+
+// int blockOffset = (address >> 0) & 0x3F;
+// int setIndex = (address >> 6) & 0x3FF;
+// int tag = (address >> 16) & 0xFFFF;
+
     //Todo:
     // Define a struct for each entry of the cache
     //      - That struct will contain the valid bit, the tag, the block offset
@@ -49,13 +62,36 @@ int main(int argc, char** argv) {
     // first char
     fp = fopen(file_name, "r");
 
+
         // The error from out printing came as a result of not formatting a space at the start
         // this has no been resolved for our next session after 11/04/22
+   
+    int min_mru = 0;
     while (fscanf(fp, " %c %x,%d", &operation, &address, &size) != EOF) {
         printf("OPERATION: %c \n", operation);
         printf("ADDRESS: %x \n", address);
         printf("SIZE: %d \n", size);
         //printf(load_instruct);
+        set_index = ~(-1 << s) & (address >> b)
+        tag = ~(-1 << (64 - (b + s))) & (address >> (b + s))
+        for (j=0; j < E; j++) {
+            if cache[&cache + set_index * E + j].valid_bit == 1 {
+                if cache[&cache + set_index * E + j].tag == tag {
+                    if operation == "S" || operation == "L" {
+                        hit_count++;
+                        cache[&cache + set_index * E + j].mru++;
+                        if cache[&cache + set_index * E + j].mru < min_mru {
+                            min_mru = j
+                        }
+                    }
+                } else {
+                    miss_count++
+                }
+
+            }
+        
+        }
+        hits_after = hits
    };
 
     // while (fscanf(fp, "%c %c %x %d", load_instruct, operation, address, size) != 4) {
